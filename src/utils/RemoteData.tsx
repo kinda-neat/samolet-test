@@ -1,36 +1,43 @@
 import React, { useState, useEffect } from 'react';
 
-type Success<R> = { tag: 'SUCCESS'; data: R };
-type Loading = { tag: 'LOADING' };
-type Fail<E> = { tag: 'FAIL'; error: E };
 type NotAsked = { tag: 'NOT_ASKED' };
+type Loading = { tag: 'LOADING' };
+type Failure<E> = { tag: 'FAIL'; error: E };
+type Success<R> = { tag: 'SUCCESS'; data: R };
 
-type RemoteData<R, E = string> = Loading | Success<R> | Fail<E> | NotAsked;
+export type RemoteData<R, E = string> = Loading | Success<R> | Failure<E> | NotAsked;
 
-const mkLoading = (): Loading => ({ tag: 'LOADING' });
-const mkSuccess = <R extends unknown>(data: R): Success<R> => ({ tag: 'SUCCESS', data });
-const mkFail = <E extends unknown>(error: E): Fail<E> => ({ tag: 'FAIL', error });
-const mkNotAsked = (): NotAsked => ({ tag: 'NOT_ASKED' });
+export const notAsked: NotAsked = ({ tag: 'NOT_ASKED' });
+export const loading: Loading = ({ tag: 'LOADING' });
+export const failure = <E extends unknown>(error: E): Failure<E> => ({ tag: 'FAIL', error });
+export const success = <R extends unknown>(data: R): Success<R> => ({ tag: 'SUCCESS', data });
 
-export function handleRemoteData<R, E>(
+export const isNotAsked = <R, E>(x: RemoteData<R, E>): boolean => x.tag === 'NOT_ASKED';
+export const isLoading = <R, E>(x: RemoteData<R, E>): boolean => x.tag === 'LOADING';
+export const isFailure = <R, E>(x: RemoteData<R, E>): boolean => x.tag === 'FAIL';
+export const isSuccess = <R, E>(x: RemoteData<R, E>): boolean => x.tag === 'SUCCESS';
+
+export const doNothing = <T extends any>() => undefined as any;
+
+export function handleRemoteData<R, E, O>(
   remoteData: RemoteData<R, E>,
-  onLoading: () => JSX.Element,
-  onSuccess: (data: R) => JSX.Element,
-  onFail: (error: E) => JSX.Element,
-  onNotAsked: () => JSX.Element,
-): JSX.Element {
+  onNotAsked: () => O,
+  onLoading: () => O,
+  onFailure: (error: E) => O,
+  onSuccess: (data: R) => O,
+): O {
   switch (remoteData.tag) {
+    case 'NOT_ASKED': {
+      return onNotAsked();
+    }
     case 'LOADING': {
       return onLoading();
     }
+    case 'FAIL': {
+      return onFailure(remoteData.error);
+    }
     case 'SUCCESS': {
       return onSuccess(remoteData.data);
-    }
-    case 'FAIL': {
-      return onFail(remoteData.error);
-    }
-    case 'NOT_ASKED': {
-      return onNotAsked();
     }
   }
 }
@@ -62,12 +69,12 @@ export function useRemoteData<R, E = string>(fn: () => Promise<R>, deps: any[]):
   }, deps);
 
   if (isLoading) {
-    return mkLoading();
+    return loading;
   } else if (error !== null) {
-    return mkFail(error);
+    return failure(error);
   } else if (data !== null) {
-    return mkSuccess(data);
+    return success(data);
   } else {
-    return mkNotAsked();
+    return notAsked;
   }
 }

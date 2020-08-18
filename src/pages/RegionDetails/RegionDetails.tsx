@@ -4,44 +4,52 @@ import { RouteComponentProps, Link, navigate } from '@reach/router';
 import { Spin, Empty } from 'antd';
 
 import { RegionDetails as RegionDetailsComponent } from 'features/regions';
-import { loadRegions } from 'api/requests';
-import { useApi } from 'utils';
+import { handleRemoteData, doNothing, RemoteData } from 'utils';
+import { Region } from 'api/types';
 
 type RouterProps = {
+  regions: RemoteData<Region[]>;
   regionID?: string;
 } & RouteComponentProps;
 
 type Props = RouterProps;
 
-export function RegionDetails({ regionID }: Props) {
-  const [areRegionsLoading, regions, error] = useApi(() => loadRegions(), []);
-  const region = React.useMemo(() => regions?.find(r => r.order === Number(regionID)), [regions]);
+export function RegionDetails({ regionID, regions }: Props) {
 
   React.useEffect(() => {
     const regionIDInvalid = isNaN(Number(regionID));
     if (regionIDInvalid) navigate('/', { replace: true });
   }, []);
 
+  const navigateIfRegionNotFound = React.useCallback(
+    (regions: Region[]) => {
+      if (!regions.some(r => r.order === Number(regionID))) {
+        console.log('navigating', { regionID, regions });
+        navigate('/', { replace: true });
+      }
+    },
+    [regionID],
+  );
+
   React.useEffect(() => {
-    const loadingFinished = typeof regions !== 'undefined' && !areRegionsLoading;
-    const notFound = loadingFinished && typeof region === 'undefined';
-    if (notFound) {
-      navigate('/', { replace: true });
-    }
-  }, [areRegionsLoading, regions, region]);
+    handleRemoteData(regions, doNothing, doNothing, doNothing, navigateIfRegionNotFound);
+  }, [regions]);
 
-  if (error !== null) {
-    return <Empty description="Failed to load data about region" />;
-  }
-
-  if (areRegionsLoading) return <Spin />;
-
-  return region ? (
-    <>
-      <Link to="/">
-        <Button>Back</Button>
-      </Link>
-      <RegionDetailsComponent region={region} />
-    </>
-  ) : null;
+  return handleRemoteData(
+    regions,
+    () => <div>Initializing</div>,
+    () => <Spin />,
+    () => <Empty description="Failed to load data about region" />,
+    regions => {
+      const region = regions.find(r => r.order === Number(regionID));
+      return region ? (
+        <>
+          <Link to="/">
+            <Button>Back</Button>
+          </Link>
+          <RegionDetailsComponent region={region} />
+        </>
+      ) : null;
+    },
+  );
 }
